@@ -47,11 +47,13 @@ fn main() {
         output.push(model_size.z as u8 - 1);
 
         output.push(colors.len() as u8);
-        for color in colors {
+        for color in &colors {
             output.push(color.r);
             output.push(color.g);
             output.push(color.b);
         }
+
+        let doing_multi = colors.len() < 128;
 
         let mut premulti = Vec::new();
         for x in 0..(model_size.x as usize) {
@@ -90,24 +92,28 @@ fn main() {
                     zeros_in_row = 0;
                 }
 
-                if last_color_num == 0 {
-                    last_color_num = v as u8;
-                    colors_in_row = 1;
-                } else if last_color_num == v as u8 {
-                    colors_in_row += 1;
-                    if colors_in_row == 128 {
+                if doing_multi {
+                    if last_color_num == 0 {
+                        last_color_num = v as u8;
+                        colors_in_row = 1;
+                    } else if last_color_num == v as u8 {
+                        colors_in_row += 1;
+                        if colors_in_row == 128 {
+                            output.push(colors_in_row + 127);
+                            output.push(last_color_num);
+
+                            colors_in_row = 0;
+                            last_color_num = 0;
+                        }
+                    } else {
                         output.push(colors_in_row + 127);
                         output.push(last_color_num);
 
-                        colors_in_row = 0;
-                        last_color_num = 0;
+                        colors_in_row = 1;
+                        last_color_num = v as u8;
                     }
                 } else {
-                    output.push(colors_in_row + 127);
-                    output.push(last_color_num);
-
-                    colors_in_row = 1;
-                    last_color_num = v as u8;
+                    output.push(v as u8);
                 }
             }
         }
