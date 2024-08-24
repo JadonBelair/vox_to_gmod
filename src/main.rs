@@ -39,7 +39,6 @@ fn main() {
             voxels[voxel.x as usize][voxel.y as usize][voxel.z as usize] = get_color_index(&colors, &palette, voxel.i as usize) + 1;
         }
 
-        // TODO: transplant ExportData3 function from lua file "cl_ccvox.lua" in the libs folder
         let mut output = Vec::new();
         output.push(0);
         output.push(0);
