@@ -46,14 +46,18 @@ fn main() {
         output.push(model_size.y as u8 - 1);
         output.push(model_size.z as u8 - 1);
 
-        output.push(colors.len() as u8);
-        for color in &colors {
-            output.push(color.r);
-            output.push(color.g);
-            output.push(color.b);
-        }
-
         let doing_multi = colors.len() < 128;
+        let doing_colors = colors.len() < 256;
+
+        if doing_colors {
+            output.push(colors.len() as u8);
+
+            for color in &colors {
+                output.push(color.r);
+                output.push(color.g);
+                output.push(color.b);
+            }
+        }
 
         let mut premulti = Vec::new();
         for x in 0..(model_size.x as usize) {
@@ -112,8 +116,15 @@ fn main() {
                         colors_in_row = 1;
                         last_color_num = v as u8;
                     }
-                } else {
+                } else if doing_colors {
                     output.push(v as u8);
+                } else {
+                    let color = colors[v];
+
+                    output.push(1);
+                    output.push(color.r);
+                    output.push(color.g);
+                    output.push(color.b);
                 }
             }
         }
