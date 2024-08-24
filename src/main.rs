@@ -1,5 +1,8 @@
+use std::fs;
+
 use dot_vox::{self, Color};
 use clap::Parser;
+use gmod_lzma;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -37,6 +40,97 @@ fn main() {
         }
 
         // TODO: transplant ExportData3 function from lua file "cl_ccvox.lua" in the libs folder
+        let mut output = Vec::new();
+        output.push(0);
+        output.push(0);
+        output.push(model_size.x as u8 - 1);
+        output.push(model_size.y as u8 - 1);
+        output.push(model_size.z as u8 - 1);
+
+        output.push(colors.len() as u8);
+        for color in colors {
+            output.push(color.r);
+            output.push(color.g);
+            output.push(color.b);
+        }
+
+        let mut premulti = Vec::new();
+        for x in 0..(model_size.x as usize) {
+            for y in 0..(model_size.y as usize) {
+                for z in 0..(model_size.z as usize) {
+                    let c = voxels[x][y][z];
+                    premulti.push(c);
+                }
+            }
+        }
+
+        let mut last_color_num: u8 = 0;
+        let mut zeros_in_row: u8 = 0;
+        let mut colors_in_row: u8 = 0;
+        for v in premulti {
+            if v == 0 {
+                if colors_in_row > 0 {
+                    output.push(colors_in_row + 127);
+                    output.push(last_color_num);
+
+                    colors_in_row = 0;
+                    last_color_num = 0;
+                }
+
+                zeros_in_row += 1;
+
+                if zeros_in_row == 255 {
+                    output.push(0);
+                    output.push(zeros_in_row);
+                    zeros_in_row = 0;
+                }
+            } else {
+                if zeros_in_row > 0 {
+                    output.push(0);
+                    output.push(zeros_in_row);
+                    zeros_in_row = 0;
+                }
+
+                if last_color_num == 0 {
+                    last_color_num = v as u8;
+                    colors_in_row = 1;
+                } else if last_color_num == v as u8 {
+                    colors_in_row += 1;
+                    if colors_in_row == 128 {
+                        output.push(colors_in_row + 127);
+                        output.push(last_color_num);
+
+                        colors_in_row = 0;
+                        last_color_num = 0;
+                    }
+                } else {
+                    output.push(colors_in_row + 127);
+                    output.push(last_color_num);
+
+                    colors_in_row = 1;
+                    last_color_num = v as u8;
+                }
+            }
+        }
+
+        if colors_in_row > 0 {
+            output.push(colors_in_row + 127);
+            output.push(last_color_num);
+        } else if zeros_in_row > 0 {
+            output.push(0);
+            output.push(zeros_in_row);
+        }
+
+        let mut compressed = gmod_lzma::compress(&output[..], 9).expect("failed to compress");
+        let mut compressed_data = vec![0, 254];
+        compressed_data.append(&mut compressed);
+
+        if output.len() > compressed_data.len() {
+            output = compressed_data;
+        }
+
+        println!("{:0X?}", output);
+        fs::write("output.dat", output).unwrap();
     }
 }
 
