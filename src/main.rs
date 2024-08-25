@@ -1,12 +1,11 @@
 use std::fs;
 
-use dot_vox::{self, Color};
 use clap::Parser;
-use gmod_lzma;
+use dot_vox::{self, Color};
 
 #[derive(Debug, Parser)]
 struct Args {
-    /// vox file to convert
+    /// magicavoxel file to convert
     file: String,
 }
 
@@ -28,7 +27,11 @@ fn main() {
         let model_size = model.size;
 
         let voxel_data = &model.voxels;
-        let mut voxels: Vec<Vec<Vec<usize>>> = vec![vec![vec![0; model_size.z as usize]; model_size.y as usize]; model_size.x as usize];
+        let mut voxels: Vec<Vec<Vec<usize>>> =
+            vec![
+                vec![vec![0; model_size.z as usize]; model_size.y as usize];
+                model_size.x as usize
+            ];
 
         for voxel in voxel_data {
             // add any new colors to the lookup table
@@ -36,7 +39,8 @@ fn main() {
                 colors.push(palette[voxel.i as usize]);
             }
             // store the lookup table position for each voxel, offset by 1 for lua
-            voxels[voxel.x as usize][voxel.y as usize][voxel.z as usize] = get_color_index(&colors, &palette, voxel.i as usize) + 1;
+            voxels[voxel.x as usize][voxel.y as usize][voxel.z as usize] =
+                get_color_index(&colors, &palette, voxel.i as usize) + 1;
         }
 
         let mut output = Vec::new();
@@ -46,7 +50,10 @@ fn main() {
         output.push(model_size.y as u8 - 1);
         output.push(model_size.z as u8 - 1);
 
+        // support for condensing  lines of the same color into 2 bytes
         let doing_multi = colors.len() < 128;
+
+        // support for the color lookup table
         let doing_colors = colors.len() < 256;
 
         if doing_colors {
@@ -59,12 +66,13 @@ fn main() {
             }
         }
 
-        let mut premulti = Vec::new();
+        // this flattens the 3D array down to 1D
+        let mut flattened_voxels = Vec::new();
         for x in 0..(model_size.x as usize) {
             for y in 0..(model_size.y as usize) {
                 for z in 0..(model_size.z as usize) {
                     let c = voxels[x][y][z];
-                    premulti.push(c);
+                    flattened_voxels.push(c);
                 }
             }
         }
@@ -72,7 +80,8 @@ fn main() {
         let mut last_color_num: u8 = 0;
         let mut zeros_in_row: u8 = 0;
         let mut colors_in_row: u8 = 0;
-        for v in premulti {
+        for v in flattened_voxels {
+            // no color here
             if v == 0 {
                 if colors_in_row > 0 {
                     output.push(colors_in_row + 127);
@@ -89,7 +98,9 @@ fn main() {
                     output.push(zeros_in_row);
                     zeros_in_row = 0;
                 }
+            // color here
             } else {
+                // add any zeroes that preceded this
                 if zeros_in_row > 0 {
                     output.push(0);
                     output.push(zeros_in_row);
@@ -97,9 +108,11 @@ fn main() {
                 }
 
                 if doing_multi {
+                    // first color
                     if last_color_num == 0 {
                         last_color_num = v as u8;
                         colors_in_row = 1;
+                    // continued color
                     } else if last_color_num == v as u8 {
                         colors_in_row += 1;
                         if colors_in_row == 128 {
@@ -109,6 +122,7 @@ fn main() {
                             colors_in_row = 0;
                             last_color_num = 0;
                         }
+                    // new color
                     } else {
                         output.push(colors_in_row + 127);
                         output.push(last_color_num);
@@ -137,6 +151,7 @@ fn main() {
             output.push(zeros_in_row);
         }
 
+        // compress the data and use which ever ends up smaller
         let mut compressed = gmod_lzma::compress(&output[..], 9).expect("failed to compress");
         let mut compressed_data = vec![0, 254];
         compressed_data.append(&mut compressed);
