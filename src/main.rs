@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, path::PathBuf};
 
 use clap::Parser;
 use dot_vox::{self, Color};
@@ -7,6 +7,9 @@ use dot_vox::{self, Color};
 struct Args {
     /// magicavoxel file to convert
     file: String,
+
+    #[arg(short, long, default_value = "output.dat")]
+    output: PathBuf,
 }
 
 fn main() {
@@ -41,6 +44,11 @@ fn main() {
             // store the lookup table position for each voxel, offset by 1 for lua
             voxels[voxel.x as usize][voxel.y as usize][voxel.z as usize] =
                 get_color_index(&colors, &palette, voxel.i as usize) + 1;
+        }
+
+        if model_size.x > 255 || model_size.y > 255 || model_size.z > 255 {
+            eprintln!("please ensure that your model dimensions are less than 256");
+            return
         }
 
         let mut output = Vec::new();
@@ -160,8 +168,7 @@ fn main() {
             output = compressed_data;
         }
 
-        println!("{:0X?}", output);
-        fs::write("output.dat", output).unwrap();
+        fs::write(args.output, output).unwrap();
     }
 }
 
