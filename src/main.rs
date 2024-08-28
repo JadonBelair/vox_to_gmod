@@ -29,6 +29,12 @@ fn main() {
         let model = &vox_file.models[0];
         let model_size = model.size;
 
+        if model_size.x > 255 || model_size.y > 255 || model_size.z > 255 {
+            eprintln!("please ensure that your model dimensions are less than 256");
+            return
+        }
+
+
         let voxel_data = &model.voxels;
         let mut voxels: Vec<Vec<Vec<usize>>> =
             vec![
@@ -44,11 +50,6 @@ fn main() {
             // store the lookup table position for each voxel, offset by 1 for lua
             voxels[voxel.x as usize][voxel.y as usize][voxel.z as usize] =
                 get_color_index(&colors, &palette, voxel.i as usize) + 1;
-        }
-
-        if model_size.x > 255 || model_size.y > 255 || model_size.z > 255 {
-            eprintln!("please ensure that your model dimensions are less than 256");
-            return
         }
 
         let mut output = Vec::new();
