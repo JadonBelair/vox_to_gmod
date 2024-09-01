@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use clap::Parser;
-use dot_vox::{self, Color, Model};
+use dot_vox::{self, Color, DotVoxData, Model};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -11,6 +11,10 @@ struct Args {
     /// output path for converted file
     #[arg(short, long, default_value = "output.dat")]
     output: PathBuf,
+
+    /// layer id for model/animation
+    #[arg(short, long, default_value_t = 0)]
+    layer: usize,
 
     /// treats the .vox file like an animation
     #[arg(short, long)]
@@ -25,13 +29,17 @@ fn main() {
             panic!("need at least 1 model");
         }
 
+        let model_ids = get_model_ids(&vox_file, args.layer);
+
         let output = if args.animation {
             let mut output = Vec::new();
-            let animation = vox_file
-                .models
-                .iter()
-                .map(|model| convert_model_to_dat(model, &vox_file.palette))
-                .collect::<Vec<Vec<u8>>>();
+            let animation = {
+                let mut frames = Vec::new();
+                for id in model_ids {
+                    frames.push(convert_model_to_dat(&vox_file.models[id], &vox_file.palette));
+                }
+                frames
+            };
 
             output.push(animation.len() as u8 - 1);
             for frame in &animation {
@@ -47,7 +55,7 @@ fn main() {
 
             output
         } else {
-            convert_model_to_dat(&vox_file.models[0], &vox_file.palette)
+            convert_model_to_dat(&vox_file.models[model_ids[0]], &vox_file.palette)
         };
 
         fs::write(args.output, output).unwrap();
@@ -195,6 +203,37 @@ fn convert_model_to_dat(model: &Model, palette: &Vec<Color>) -> Vec<u8> {
     }
 
     return output;
+}
+
+fn get_model_ids(vox_file: &DotVoxData, layer: usize) -> Vec<usize> {
+    match &vox_file.scenes[0] {
+        dot_vox::SceneNode::Transform { child, ..} => {
+            match &vox_file.scenes[*child as usize] {
+                dot_vox::SceneNode::Group { children , ..} => {
+                    for c in children {
+                        match &vox_file.scenes[*c as usize] {
+                            dot_vox::SceneNode::Transform { layer_id, child, .. } => {
+                                if *layer_id as usize == layer {
+                                    let scene = &vox_file.scenes[*child as usize];
+                                    match scene {
+                                        dot_vox::SceneNode::Shape { models, .. } => {
+                                            return models.iter().map(|v| v.model_id as usize).collect::<Vec<usize>>();
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                }
+                            }
+                            _ => unreachable!()
+                        }
+                    }
+                }
+                _ => unreachable!()
+            }
+        }
+        _ => unreachable!()
+    };
+
+    Vec::new()
 }
 
 /// returns the lookup table index for a given palette index
