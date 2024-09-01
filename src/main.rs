@@ -206,32 +206,20 @@ fn convert_model_to_dat(model: &Model, palette: &Vec<Color>) -> Vec<u8> {
 }
 
 fn get_model_ids(vox_file: &DotVoxData, layer: usize) -> Vec<usize> {
-    match &vox_file.scenes[0] {
-        dot_vox::SceneNode::Transform { child, ..} => {
-            match &vox_file.scenes[*child as usize] {
-                dot_vox::SceneNode::Group { children , ..} => {
-                    for c in children {
-                        match &vox_file.scenes[*c as usize] {
-                            dot_vox::SceneNode::Transform { layer_id, child, .. } => {
-                                if *layer_id as usize == layer {
-                                    let scene = &vox_file.scenes[*child as usize];
-                                    match scene {
-                                        dot_vox::SceneNode::Shape { models, .. } => {
-                                            return models.iter().map(|v| v.model_id as usize).collect::<Vec<usize>>();
-                                        }
-                                        _ => unreachable!()
-                                    }
-                                }
-                            }
-                            _ => unreachable!()
+    if let dot_vox::SceneNode::Transform { child, ..} = &vox_file.scenes[0] {
+        if let dot_vox::SceneNode::Group { children, .. } = &vox_file.scenes[*child as usize] {
+            for c in children {
+                if let dot_vox::SceneNode::Transform { child, layer_id , .. } = &vox_file.scenes[*c as usize] {
+                    if *layer_id as usize == layer {
+                        let scene = &vox_file.scenes[*child as usize];
+                        if let dot_vox::SceneNode::Shape {models, ..} = scene {
+                            return models.iter().map(|v| v.model_id as usize).collect::<Vec<usize>>();
                         }
                     }
                 }
-                _ => unreachable!()
             }
         }
-        _ => unreachable!()
-    };
+    }
 
     Vec::new()
 }
