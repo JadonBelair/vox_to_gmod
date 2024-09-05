@@ -59,6 +59,8 @@ fn main() {
         };
 
         fs::write(args.output, output).unwrap();
+    } else {
+        panic!("Failed to open \"{}\".", args.file);
     }
 }
 
